@@ -22,8 +22,8 @@ Gcode::Gcode(const string &command, StreamOutput *stream, bool strip)
     this->add_nl= false;
     this->stream= stream;
     this->millimeters_of_travel = 0.0F;
-    this->accepted_by_module = false;
     prepare_cached_values(strip);
+    this->stripped= strip;
 }
 
 Gcode::~Gcode()
@@ -44,7 +44,6 @@ Gcode::Gcode(const Gcode &to_copy)
     this->g                     = to_copy.g;
     this->add_nl                = to_copy.add_nl;
     this->stream                = to_copy.stream;
-    this->accepted_by_module    = false;
     this->txt_after_ok.assign( to_copy.txt_after_ok );
 }
 
@@ -61,7 +60,6 @@ Gcode &Gcode::operator= (const Gcode &to_copy)
         this->stream                = to_copy.stream;
         this->txt_after_ok.assign( to_copy.txt_after_ok );
     }
-    this->accepted_by_module = false;
     return *this;
 }
 
@@ -132,12 +130,26 @@ uint32_t Gcode::get_uint( char letter, char **ptr ) const
 int Gcode::get_num_args() const
 {
     int count = 0;
-    for(size_t i = 1; i < strlen(command); i++) {
+    for(size_t i = stripped?0:1; i < strlen(command); i++) {
         if( this->command[i] >= 'A' && this->command[i] <= 'Z' ) {
+            if(this->command[i] == 'T') continue;
             count++;
         }
     }
     return count;
+}
+
+std::map<char,float> Gcode::get_args() const
+{
+    std::map<char,float> m;
+    for(size_t i = stripped?0:1; i < strlen(command); i++) {
+        char c= this->command[i];
+        if( c >= 'A' && c <= 'Z' ) {
+            if(c == 'T') continue;
+            m[c]= get_value(c);
+        }
+    }
+    return m;
 }
 
 // Cache some of this command's properties, so we don't have to parse the string every time we want to look at them
@@ -165,11 +177,6 @@ void Gcode::prepare_cached_values(bool strip)
         free(command);
         command= n;
     }
-}
-
-void Gcode::mark_as_taken()
-{
-    this->accepted_by_module = true;
 }
 
 // strip off X Y Z I J K parameters if G0/1/2/3
